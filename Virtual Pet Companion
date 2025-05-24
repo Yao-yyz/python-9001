@@ -1,0 +1,348 @@
+# ==================== pet.py ====================
+import datetime
+
+class Pet:
+    """
+    Pet represents a virtual pet with hunger, happiness, and energy stats.
+    It provides methods to feed, play, sleep, view status, and apply time decay.
+    """
+    # Class variable: list of supported species (immutable tuple)
+    species_options = ("Cat", "Dog", "Rabbit")
+
+    def __init__(self, name, species):
+        """
+        Initialize a new Pet instance.
+
+        Parameters:
+        - name (str): The name of the pet.
+        - species (str): The species of the pet, must be in species_options.
+        """
+        self.name = name                # Pet's name
+        self.species = species          # Pet's species
+        # Stats range from 0 to 100:
+        self.hunger = 50                # 0=starving, 100=full
+        self.happiness = 50             # 0=sad, 100=very happy
+        self.energy = 50                # 0=exhausted, 100=full energy
+        self.history = []               # List[str]: records of recent actions
+
+    def feed(self, amount=20):
+        """
+        Feed the pet to reduce hunger.
+
+        - Increases hunger stat by 'amount', capped at 100.
+        - Records the change in history.
+
+        Returns:
+        - tuple(old_hunger, new_hunger)
+        """
+        old = self.hunger
+        # Increase hunger but do not exceed 100
+        self.hunger = min(100, self.hunger + amount)
+        # Log the feed event
+        self.history.append(f"Fed: {old} → {self.hunger}")
+        return old, self.hunger
+
+    def play(self):
+        """
+        Play with the pet to increase happiness at the cost of energy.
+
+        - Requires at least 10 energy to play.
+        - Increases happiness by 15, decreases energy by 15.
+        - Records success or failure in history.
+
+        Returns:
+        - bool: True if played, False if too tired.
+        """
+        if self.energy < 10:
+            # Not enough energy to play
+            self.history.append("Play failed: too tired")
+            return False
+        old_h, old_e = self.happiness, self.energy
+        # Apply stat changes
+        self.happiness = min(100, self.happiness + 15)
+        self.energy = max(0, self.energy - 15)
+        # Log the play event
+        self.history.append(f"Played: H {old_h}→{self.happiness}, E {old_e}→{self.energy}")
+        return True
+
+    def sleep(self, hours=2):
+        """
+        Let the pet sleep to restore energy.
+
+        - Restores energy at rate of 10 per hour, capped at 100.
+        - Records the sleep event in history.
+
+        Parameters:
+        - hours (int): Number of hours to sleep.
+
+        Returns:
+        - tuple(old_energy, new_energy)
+        """
+        old = self.energy
+        self.energy = min(100, self.energy + hours * 10)
+        self.history.append(f"Slept {hours}h: E {old}→{self.energy}")
+        return old, self.energy
+
+    def status(self):
+        """
+        Get current stats of the pet.
+
+        Returns:
+        - dict: {'hunger': int, 'happiness': int, 'energy': int}
+        """
+        return {"hunger": self.hunger,
+                "happiness": self.happiness,
+                "energy": self.energy}
+
+    def time_decay(self):
+        """
+        Apply time-based decay to stats each loop iteration.
+
+        - Decreases hunger by 5, happiness by 2 (half decay), and energy by 5.
+        - Logs the decay event in history.
+        """
+        decay = 5
+        self.hunger = max(0, self.hunger - decay)
+        self.happiness = max(0, self.happiness - decay // 2)
+        self.energy = max(0, self.energy - decay)
+        self.history.append("Time passed: -stats")
+
+
+
+
+
+
+
+
+
+
+
+
+# ==================== data_manager.py ====================
+from pet import Pet
+
+# Number of fields before history in save file
+SAVE_FIELDS = 5
+
+def load_pet(filename):
+    """
+    Load a Pet object from a CSV-like text file.
+
+    File format:
+        name,species,hunger,happiness,energy,history1|history2|...
+
+    Returns:
+    - Pet object if load succeeds
+    - None if file not found or format error
+    """
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            line = f.readline().strip()
+        parts = line.split(',')
+        # Validate minimum fields
+        if len(parts) < SAVE_FIELDS:
+            raise ValueError("Invalid save format")
+        # Parse basic stats
+        name, species = parts[0], parts[1]
+        hunger, happiness, energy = map(int, parts[2:5])
+        # Parse history if present
+        history = parts[5].split('|') if len(parts) > 5 and parts[5] else []
+        # Reconstruct Pet
+        pet = Pet(name, species)
+        pet.hunger, pet.happiness, pet.energy = hunger, happiness, energy
+        pet.history = history
+        return pet
+    except FileNotFoundError:
+        # No existing save file
+        return None
+    except Exception as e:
+        print("Load error:", e)
+        return None
+
+
+def save_pet(pet, filename):
+    """
+    Save a Pet object to a text file in CSV-like format.
+
+    Writes: name,species,hunger,happiness,energy,history1|history2|...
+    """
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            history_str = '|'.join(pet.history)
+            line = f"{pet.name},{pet.species},{pet.hunger},{pet.happiness},{pet.energy},{history_str}"
+            f.write(line)
+    except Exception as e:
+        print("Save error:", e)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ==================== ui.py ====================
+
+def display_menu():
+    """
+    Print the main action menu to the console.
+    """
+    print("""
+1. Feed
+2. Play
+3. Sleep
+4. Show Status
+5. Show Recent History
+6. Exit
+""")
+
+
+def get_choice(prompt='Your choice: '):
+    """
+    Prompt the user for input and strip whitespace.
+
+    Returns:
+    - str: the user's raw input
+    """
+    return input(prompt).strip()
+
+
+def show_status(stats):
+    """
+    Display the pet's current stats neatly.
+
+    Parameters:
+    - stats (dict): output from Pet.status()
+    """
+    for key, value in stats.items():
+        print(f"{key.title():<9}: {value}/100")
+
+
+def show_history(history, count=5):
+    """
+    Display the most recent history entries.
+
+    Parameters:
+    - history (list of str): pet.history list
+    - count (int): how many recent entries to show
+    """
+    recent = history[-count:]
+    if recent:
+        print("Recent activities:")
+        for entry in recent:
+            print(f" - {entry}")
+    else:
+        print("No history yet.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""
+The code is split into four modules by responsibility: 
+pet.py defines the Pet class and all its behaviors, showcasing object-oriented design; 
+data_manager.py handles loading and saving, demonstrating file I/O and exception handling; 
+ui.py provides user-interface functions for menu display, input collection, and result presentation; 
+main.py serves as the program entry point, orchestrating the main loop and coordinating the modules.
+"""
+# ==================== main.py ====================
+import sys
+from pet import Pet
+from data_manager import load_pet, save_pet
+from ui import display_menu, get_choice, show_status, show_history
+
+
+def create_new_pet():
+    """
+    Guide user through creating a new Pet instance.
+
+    Prompts for name and species selection.
+    Returns:
+    - Pet: newly created Pet object
+    """
+    name = input("Enter your pet's name: ")
+    options = Pet.species_options
+    print("Choose species:")
+    for i, s in enumerate(options, 1):
+        print(f"{i}. {s}")
+    while True:
+        choice = get_choice('>>> ')
+        if choice.isdigit():
+            idx = int(choice)
+            if 1 <= idx <= len(options):
+                return Pet(name, options[idx - 1])
+        print("Invalid choice, enter a number.")
+
+
+def main():
+    """
+    Program entry point and main event loop.
+
+    - Loads existing pet from file or creates new one.
+    - Displays a menu and processes user commands until exit.
+    """
+    # Determine save filename from command-line argument or default
+    filename = sys.argv[1] if len(sys.argv) > 1 else 'pet_data.txt'
+
+    # Load or create pet
+    pet = load_pet(filename) or create_new_pet()
+    print(f"🐾 Welcome: {pet.name} the {pet.species}")
+
+    # Main loop: decay stats, then handle user action
+    while True:
+        pet.time_decay()
+        display_menu()
+        cmd = get_choice()
+
+        if cmd == '1':
+            old, new = pet.feed()
+            print(f"Hunger: {old} → {new}")
+        elif cmd == '2':
+            print("That was fun!" if pet.play() else f"{pet.name} is too tired.")
+        elif cmd == '3':
+            hrs = get_choice("Sleep hours? ")
+            try:
+                hrs = int(hrs)
+            except ValueError:
+                print("Invalid input, defaulting to 2 hours")
+                hrs = 2
+            old, new = pet.sleep(hrs)
+            print(f"Energy: {old} → {new}")
+        elif cmd == '4':
+            show_status(pet.status())
+        elif cmd == '5':
+            show_history(pet.history)
+        elif cmd == '6':
+            save_pet(pet, filename)
+            print("Goodbye! 👋")
+            break
+        else:
+            print("Please select a valid option (1-6).")
+            continue
+
+        # Save after each valid action
+        save_pet(pet, filename)
+
+
+if __name__ == '__main__':
+    main()
