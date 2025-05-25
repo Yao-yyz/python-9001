@@ -304,8 +304,22 @@ def main():
     # Determine save filename from command-line argument or default
     filename = sys.argv[1] if len(sys.argv) > 1 else 'pet_data.txt'
 
-    # Load or create pet
-    pet = load_pet(filename) or create_new_pet()
+    # # Load or create pet  Wrong_cannot creat new pet.
+    # pet = load_pet(filename) or create_new_pet()
+    # print(f"🐾 Welcome: {pet.name} the {pet.species}")
+
+    # Try loading save file
+    old_pet = load_pet(filename)
+    if old_pet:
+        choice = input(f"Save file \"{filename}\" found. Load it? [Y/N]: ").strip().lower()
+        if choice == 'y':
+            pet = old_pet
+            print(f"✔ Loaded: {pet.name} the {pet.species}")
+        else:
+            pet = create_new_pet()
+    else:
+        pet = create_new_pet()
+
     print(f"🐾 Welcome: {pet.name} the {pet.species}")
 
     # Main loop: decay stats, then handle user action
@@ -346,3 +360,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
